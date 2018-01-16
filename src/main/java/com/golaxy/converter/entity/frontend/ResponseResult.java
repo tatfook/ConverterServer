@@ -19,12 +19,16 @@ public class ResponseResult {
     private String uid;
     /** 队列长度 **/
     private Integer waitqueue;
+    /** 文章id: 数据库表id **/
+    private int article_id;
     /** 文章名字 **/
     private String article_name;
     /** 上传进度：0-100 **/
     private Integer progress;
     /** 上传速度：100KB/s **/
     private String speed;
+    /** 原文件预览地址 **/
+    private String preview_url;
     /** 图片列表 **/
     List<ConverterResult> imgList;
     /** md列表 **/
@@ -62,6 +66,14 @@ public class ResponseResult {
         this.waitqueue = waitqueue;
     }
 
+    public int getArticle_id() {
+        return article_id;
+    }
+
+    public void setArticle_id(int article_id) {
+        this.article_id = article_id;
+    }
+
     public String getArticle_name() {
         return article_name;
     }
@@ -84,6 +96,14 @@ public class ResponseResult {
 
     public void setSpeed(String speed) {
         this.speed = speed;
+    }
+
+    public String getPreview_url() {
+        return preview_url;
+    }
+
+    public void setPreview_url(String preview_url) {
+        this.preview_url = preview_url;
     }
 
     public List<ConverterResult> getImgList() {
