@@ -18,12 +18,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 import javax.imageio.ImageIO;
 
@@ -58,15 +53,28 @@ public class CommonUtils {
 		String uuidStr = str.replace("-", "");
 		return uuidStr; 
 	}
+
+    /**
+     * 生成唯一文件名
+     * @return
+     */
+	public static String generateFileName() {
+        // 获得当前时间
+        SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss");
+        // 转换为字符串
+		String formatDate = format.format(new Date());
+        // 随机生成文件编号
+		int random = new Random().nextInt(10000);
+		return new StringBuffer().append(formatDate).append(random).toString();
+	}
 	
 	/**
 	 * 生成yyyyMMdd格式的日期
 	 * @return
 	 */
 	public static String getStringDate() {
-		Date currentTime = new Date();
 		SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd");
-		String dateString = formatter.format(currentTime);
+		String dateString = formatter.format(new Date());
 		return dateString;
 	}
 	
@@ -345,7 +353,12 @@ public class CommonUtils {
 
 		return imgSrcList;
 	}
-	
+
+    /**
+     * 获取网页编码
+     * @param htmlFile html文件绝对地址
+     * @return 编码格式
+     */
 	public static String getHtmlCharset(String htmlFile) {
 		String charset = null;
 		
@@ -359,6 +372,12 @@ public class CommonUtils {
                 charset = elements.get(i).attr("charset");
                 if (charset != null)
                     break;
+                else {
+                    String content = elements.get(i).attr("content").toLowerCase();
+                    String utf8 = "utf-8";
+                    if (content.indexOf(utf8) != -1)
+                        return utf8;
+                }
             }
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -370,6 +389,27 @@ public class CommonUtils {
 
 		return charset;
 	}
+
+    /**
+     * 修改网页编码并保存为相应编码格式文件为utf-8
+     * @param htmlFile html文件绝对地址
+     * @return 编码格式
+     */
+    public static void saveUTF8Html(String htmlFile) throws IOException {
+
+        String srcCharset = CommonUtils.getHtmlCharset(htmlFile);
+        if (!srcCharset.equalsIgnoreCase("utf-8")) {
+            CommonUtils.write(htmlFile, CommonUtils.read(htmlFile, srcCharset), "UTF-8");
+            Document doc = Jsoup.parse(new File(htmlFile), "UTF-8");
+            Elements elements = doc.select("meta");
+            for (int i=0; i<elements.size(); i++) {
+                String charset = elements.get(i).attr("charset");
+                if (charset != null)
+                    elements.get(i).attr("charset", "utf-8");
+            }
+            CommonUtils.write(htmlFile, doc.toString(), "UTF-8");
+        }
+    }
 	
 	/**
 	 * 读取文件内容到StringBuffer
@@ -482,59 +522,6 @@ public class CommonUtils {
 	}
 	
 	/**
-	 * 文件转base64
-	 * @param imgFilePath 文件
-	 * @return
-	 */
-	public static String file2Base64(String imgFilePath) {
-		// 将图片文件转化为字节数组字符串，并对其进行Base64编码处理
-		byte[] data = null;
-		 
-		// 读取图片字节数组
-		try {
-			InputStream in = new FileInputStream(imgFilePath);
-			data = new byte[in.available()];
-			in.read(data);
-			in.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		 
-		// 对字节数组Base64编码
-		BASE64Encoder encoder = new BASE64Encoder();
-		return encoder.encode(data);// 返回Base64编码过的字节数组字符串
-	}
-		
-	/**
-	 * base64转图片
-	 * @param imgBase64Str  图片base64串
-	 * @param imgFilePath  生成的目标图片
-	 */
-	public static boolean base642Image(String imgBase64Str, String imgFilePath) {
-		// 对字节数组字符串进行Base64解码并生成图片
-		if (imgBase64Str == null) // 图像数据为空
-			return false;
-		BASE64Decoder decoder = new BASE64Decoder();
-		try {
-			// Base64解码
-			byte[] bytes = decoder.decodeBuffer(imgBase64Str);
-			for (int i = 0; i < bytes.length; ++i) {
-				if (bytes[i] < 0) {// 调整异常数据
-					bytes[i] += 256;
-				}
-			}
-			// 生成图片
-			OutputStream out = new FileOutputStream(imgFilePath);
-			out.write(bytes);
-			out.flush();
-			out.close();
-			return true;
-		} catch (Exception e) {
-			return false;
-		}
-	}
-	
-	/**
 	 * 获取文件的扩展名
 	 * @param fileName 绝对路径相对路径皆可
 	 * @return
@@ -544,7 +531,7 @@ public class CommonUtils {
 		
 		ext = fileName.substring(fileName.lastIndexOf(".")+1);
 		
-		return ext;
+		return ext.toLowerCase();
 	}
 	
 	/**
@@ -566,26 +553,35 @@ public class CommonUtils {
 	}
 
 	/**
-	 * 判断pdf是佛印影版
+	 * 判断pdf是否影印版
 	 * @param fileName
 	 * @return true是  false否
 	 */
 	public static boolean isPhotocopyPdf(String fileName) {
-		boolean is = false;
 		
-		File pdfFile = new File(fileName);
+		return isPhotocopyPdf(new File(fileName));
+	}
+
+    /**
+     * 判断pdf是否影印版
+     * @param pdfFile
+     * @return true是  false否
+     */
+    public static boolean isPhotocopyPdf(File pdfFile) {
+        boolean is = false;
+
         PDDocument document = null;
         try
         {
             // 方式一：
             /**
-            InputStream input = null;
-            input = new FileInputStream( pdfFile );
-            //加载 pdf 文档
-            PDFParser parser = new PDFParser(new RandomAccessBuffer(input));
-            parser.parse();
-            document = parser.getPDDocument();
-            **/
+             InputStream input = null;
+             input = new FileInputStream( pdfFile );
+             //加载 pdf 文档
+             PDFParser parser = new PDFParser(new RandomAccessBuffer(input));
+             parser.parse();
+             document = parser.getPDDocument();
+             **/
 
             // 方式二：
             document = PDDocument.load(pdfFile);
@@ -597,36 +593,77 @@ public class CommonUtils {
             PDFTextStripper stripper=new PDFTextStripper();
             // 设置按顺序输出
             //stripper.setSortByPosition(true);
-            
+
             int step = pages / 3;
             int totalLength = 0;
             for (int i=0; i<3; i++) {
-            	int page = 1 + i * step;
-            	stripper.setStartPage(page);
+                int page = 1 + i * step;
+                stripper.setStartPage(page);
                 stripper.setEndPage(page);
-                totalLength += stripper.getText(document).length();  
+                totalLength += stripper.getText(document).length();
             }
             if (totalLength < 15)
-            	is = true;
-            else 
-            	is = false;
-   
+                is = true;
+            else
+                is = false;
+
         } catch(Exception e) {
             e.printStackTrace();
         } finally{
             if(document != null){
                 try {
-					document.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
+                    document.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
-        }    
-		
-		return is;
-	} 
-	
-	/**
+        }
+
+        return is;
+    }
+
+    /**
+     * 获取pdf页码
+     * @param fileName
+     * @return
+     */
+    public static int getPdfPageNum(String fileName) {
+
+        return getPdfPageNum(new File(fileName));
+    }
+
+    /**
+     * 获取pdf页码
+     * @param pdfFile
+     * @return
+     */
+    public static int getPdfPageNum(File pdfFile) {
+        int pages = -1;
+
+        PDDocument document = null;
+        try
+        {
+            document = PDDocument.load(pdfFile);
+
+            // 获取页码
+            pages = document.getNumberOfPages();
+
+        } catch(IOException e) {
+            e.printStackTrace();
+        } finally{
+            if(document != null){
+                try {
+                    document.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        return pages;
+    }
+
+    /**
 	 * 按指定编码写文件
 	 * @param path
 	 * @param content
@@ -808,5 +845,48 @@ public class CommonUtils {
 
 		return path;
 	}
+
+    /**
+     * 转换毫秒时间段为02 d 10 h 38 m 31 s字符串
+     * @param ms
+     * @return
+     */
+    public static String convertTimeMillis2TimePerid(long ms) {
+
+        String ret = "";
+
+        int ss = 1000;
+        int mi = ss * 60;
+        int hh = mi * 60;
+        int dd = hh * 24;
+
+        long day = ms / dd;
+        long hour = (ms - day * dd) / hh;
+        long minute = (ms - day * dd - hour * hh) / mi;
+        long second = (ms - day * dd - hour * hh - minute * mi) / ss;
+//        long milliSecond = ms - day * dd - hour * hh - minute * mi - second * ss;
+
+        String strDay = day + "d"; //天
+        String strHour = hour + "h";//小时
+        String strMinute = minute + "m";//分钟
+        String strSecond = second + "s";//秒
+//        String strMilliSecond = milliSecond < 10 ? "0" + milliSecond : "" + milliSecond;//毫秒
+//        strMilliSecond = milliSecond < 100 ? "0" + strMilliSecond : "" + strMilliSecond;
+
+        if (day > 0)
+            ret = strDay + strHour + strMinute + strSecond;
+        else {
+            if (hour > 0)
+                ret = strHour + strMinute + strSecond;
+            else {
+                if (minute > 0)
+                    ret = strMinute + strSecond;
+                else
+                    ret = strSecond;
+            }
+        }
+
+        return ret;
+    }
 
 }
